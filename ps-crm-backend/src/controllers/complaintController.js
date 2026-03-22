@@ -244,8 +244,26 @@ const getComplaintByNumber = async (req, res) => {
 
     const complaintData = complaint.toObject();
     complaintData.citizen = matchedFiler?.citizen || complaintData.filers?.[0]?.citizen || null;
-    complaintData.description = matchedFiler?.description || complaintData.filers?.[0]?.description || '';
+    
+    // Get the actual description from filers - check multiple sources for backwards compatibility
+    let description = '';
+    if (complaintData.filers.length > 1) {
+      // Duplicate: use first filer's description
+      description = complaintData.filers?.[0]?.description || '';
+    } else {
+      // Single filer: use matched filer's description
+      description = matchedFiler?.description || complaintData.filers?.[0]?.description || '';
+    }
+    
+    // Fallback: check root-level description field (for old complaints before this feature)
+    if (!description && complaintData.description) {
+      description = complaintData.description;
+    }
+    
+    complaintData.description = description;
     complaintData.images = matchedFiler?.images || [];
+
+    console.log(`[getComplaintByNumber] Email: ${email}, Complaint: ${complaintData.complaintNumber}, Filers: ${complaintData.filers.length}, Description: "${complaintData.description?.substring(0, 60) || 'EMPTY'}"`);
 
     res.status(200).json({ success: true, data: complaintData });
   } catch (error) {
@@ -261,7 +279,50 @@ const getComplaintById = async (req, res) => {
     if (!complaint) {
       return res.status(404).json({ success: false, message: 'Complaint not found' });
     }
-    res.status(200).json({ success: true, data: complaint });
+
+    const complaintObj = complaint.toObject();
+
+    // If user is authenticated, find and return their specific description
+    if (req.user?.email) {
+      const matchedFiler = complaintObj.filers.find(
+        (filer) => (filer.citizen?.email || '').trim().toLowerCase() === req.user.email.toLowerCase()
+      );
+      
+      // Get the actual description from filers - NEVER generate from title
+      let description = '';
+      if (complaintObj.filers.length > 1) {
+        // Duplicate: use first filer's description
+        description = complaintObj.filers?.[0]?.description || '';
+      } else {
+        // Single filer: use matched filer's description
+        description = matchedFiler?.description || complaintObj.filers?.[0]?.description || '';
+      }
+      
+      // Fallback: check root-level description field (for old complaints before this feature)
+      if (!description && complaintObj.description) {
+        description = complaintObj.description;
+      }
+      
+      complaintObj.description = description;
+      complaintObj.images = matchedFiler?.images || [];
+      
+      console.log(`[getComplaintById Auth] Email: ${req.user.email}, Complaint: ${complaintObj.complaintNumber}, Description: "${complaintObj.description?.substring(0, 60) || 'EMPTY'}"`);
+    } else {
+      // If no user, return first filer's description (public access)
+      let description = complaintObj.filers?.[0]?.description || '';
+      
+      // Fallback: check root-level description field (for old complaints before this feature)
+      if (!description && complaintObj.description) {
+        description = complaintObj.description;
+      }
+      
+      complaintObj.description = description;
+      complaintObj.images = complaintObj.filers?.[0]?.images || [];
+      
+      console.log(`[getComplaintById Public] Complaint: ${complaintObj.complaintNumber}, Description: "${complaintObj.description?.substring(0, 60) || 'EMPTY'}"`);
+    }
+
+    res.status(200).json({ success: true, data: complaintObj });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -322,11 +383,28 @@ const updateComplaintStatus = async (req, res) => {
 
 const getMyComplaints = async (req, res) => {
   try {
+    const userEmail = (req.user.email || '').trim().toLowerCase();
+    
     const complaints = await Complaint.find({
-      'filers.citizen.email': req.user.email,
+      'filers.citizen.email': userEmail,
     }).sort({ createdAt: -1 });
 
-    res.status(200).json({ success: true, data: complaints });
+    // For each complaint, just copy the user's description to root level - NO modifications
+    const processedComplaints = complaints.map(complaint => {
+      const complaintData = complaint.toObject();
+      
+      const matchedFiler = complaintData.filers.find(
+        (filer) => (filer.citizen?.email || '').trim().toLowerCase() === userEmail
+      );
+      
+      // Simply copy the description from filers array to root level - exactly what user typed
+      complaintData.description = matchedFiler?.description || complaintData.filers?.[0]?.description || '';
+      complaintData.images = matchedFiler?.images || [];
+      
+      return complaintData;
+    });
+
+    res.status(200).json({ success: true, data: processedComplaints });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
