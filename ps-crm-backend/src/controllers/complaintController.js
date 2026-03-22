@@ -4,8 +4,6 @@ const { sendComplaintConfirmation, sendStatusUpdate } = require('../config/email
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const Groq = require('groq-sdk');
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
 const parseImages = (rawImages) => {
   if (!rawImages) return [];
   const arr = typeof rawImages === 'string' ? JSON.parse(rawImages) : rawImages;
@@ -17,8 +15,6 @@ const parseImages = (rawImages) => {
     uploadedAt: new Date(),
   }));
 };
-
-// ─── Classification constants ─────────────────────────────────────────────────
 
 const VALID_DEPARTMENTS = [
   'Sanitation & Solid Waste Management',
@@ -92,12 +88,10 @@ IMPORTANT RULES:
 Return ONLY a raw JSON object. No markdown. No explanation. No extra text:
 {"category":"Encroachment","urgency":"Medium","department":"Encroachment Removal","reason":"Vendor illegally occupying public footpath"}`;
 
-// ─── Dedup constants ──────────────────────────────────────────────────────────
+// ─── Dedup + semantic helpers (added) ────────────────────────────────────────
 
-const URGENCY_RANK       = { Low: 1, Medium: 2, High: 3 };
+const URGENCY_RANK         = { Low: 1, Medium: 2, High: 3 };
 const SIMILARITY_THRESHOLD = 0.82;
-
-// ─── Semantic helpers ─────────────────────────────────────────────────────────
 
 const getEmbedding = async (text) => {
   try {
@@ -170,7 +164,7 @@ const submitComplaint = async (req, res) => {
     }
 
     if (bestMatch) {
-      // ── DUPLICATE PATH ──────────────────────────────────────────────────
+      // ── DUPLICATE PATH ────────────────────────────────────────────────────
       const newFiler = {
         citizen: {
           name:  citizen.name  || '',
@@ -241,7 +235,7 @@ const submitComplaint = async (req, res) => {
   }
 };
 
-// ─── GET /api/complaints — All complaints (admin only) ───────────────────────
+// ─── GET /api/complaints ──────────────────────────────────────────────────────
 
 const getAllComplaints = async (req, res) => {
   try {
@@ -353,27 +347,17 @@ const getComplaintById = async (req, res) => {
 const updateComplaintStatus = async (req, res) => {
   try {
     const { status, resolution, assignedTo, afterImages } = req.body;
-
     const updateFields = {
       ...(status                   && { status }),
       ...(resolution               && { resolution }),
       ...(assignedTo !== undefined && { assignedTo }),
     };
-
     const parsedAfterImages = parseImages(afterImages);
     if (parsedAfterImages.length > 0) updateFields.afterImages = parsedAfterImages;
 
-    const complaint = await Complaint.findByIdAndUpdate(
-      req.params.id,
-      updateFields,
-      { new: true }
-    );
+    const complaint = await Complaint.findByIdAndUpdate(req.params.id, updateFields, { new: true });
+    if (!complaint) return res.status(404).json({ success: false, message: 'Complaint not found' });
 
-    if (!complaint) {
-      return res.status(404).json({ success: false, message: 'Complaint not found' });
-    }
-
-    // Populate officer name for email
     const populatedComplaint = await Complaint.findById(complaint._id).lean();
     if (populatedComplaint.assignedTo) {
       const User = require('../models/User');
@@ -407,14 +391,11 @@ const getMyComplaints = async (req, res) => {
 
     const processedComplaints = complaints.map(complaint => {
       const complaintData = complaint.toObject();
-
       const matchedFiler = complaintData.filers.find(
         (filer) => (filer.citizen?.email || '').trim().toLowerCase() === userEmail
       );
-
       complaintData.description = matchedFiler?.description || complaintData.filers?.[0]?.description || '';
       complaintData.images      = matchedFiler?.images || [];
-
       return complaintData;
     });
 
@@ -428,8 +409,7 @@ const getMyComplaints = async (req, res) => {
 
 const getAssignedComplaints = async (req, res) => {
   try {
-    const complaints = await Complaint.find({ assignedTo: req.user._id.toString() })
-      .sort({ createdAt: -1 });
+    const complaints = await Complaint.find({ assignedTo: req.user._id.toString() }).sort({ createdAt: -1 });
     res.status(200).json({ success: true, data: complaints });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -455,12 +435,10 @@ const parseAIResponse = (raw) => {
       reason:     resMatch?.[1]  || 'AI classified',
     };
   }
-  return {
-    category:   VALID_CATEGORIES.includes(parsed.category)   ? parsed.category   : 'Other',
-    urgency:    VALID_URGENCIES.includes(parsed.urgency)      ? parsed.urgency    : 'Low',
-    department: VALID_DEPARTMENTS.includes(parsed.department) ? parsed.department : 'Other',
-    reason:     parsed.reason || 'AI classified',
-  };
+  const finalCategory   = VALID_CATEGORIES.includes(parsed.category)   ? parsed.category   : 'Other';
+  const finalUrgency    = VALID_URGENCIES.includes(parsed.urgency)      ? parsed.urgency    : 'Low';
+  const finalDepartment = VALID_DEPARTMENTS.includes(parsed.department) ? parsed.department : 'Other';
+  return { category: finalCategory, urgency: finalUrgency, department: finalDepartment, reason: parsed.reason || 'AI classified' };
 };
 
 // ─── POST /api/complaints/classify ───────────────────────────────────────────
@@ -478,13 +456,13 @@ const classifyComplaint = async (req, res) => {
   try {
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
     const completion = await groq.chat.completions.create({
-      model:       'llama-3.3-70b-versatile',
-      messages:    [{ role: 'user', content: prompt }],
+      model: 'llama-3.3-70b-versatile',
+      messages: [{ role: 'user', content: prompt }],
       temperature: 0.1,
-      max_tokens:  200,
+      max_tokens: 200,
     });
 
-    const raw    = completion.choices[0]?.message?.content || '';
+    const raw = completion.choices[0]?.message?.content || '';
     const result = parseAIResponse(raw);
 
     console.log(`[Groq] "${title}" → ${result.category} / ${result.urgency} / ${result.department}`);
@@ -495,10 +473,10 @@ const classifyComplaint = async (req, res) => {
 
     // ── FALLBACK: Gemini 2.0 Flash ────────────────────────────────────────
     try {
-      const genAI  = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-      const model  = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
       const geminiResult = await model.generateContent(prompt);
-      const raw    = geminiResult.response.text();
+      const raw = geminiResult.response.text();
       const result = parseAIResponse(raw);
 
       console.log(`[Gemini] "${title}" → ${result.category} / ${result.urgency} / ${result.department}`);
@@ -507,7 +485,6 @@ const classifyComplaint = async (req, res) => {
     } catch (geminiError) {
       console.error('[Gemini] Error:', geminiError.message, '— Both AI failed.');
 
-      // ── LAST RESORT ───────────────────────────────────────────────────
       return res.status(200).json({
         success: true,
         data: {
@@ -515,7 +492,7 @@ const classifyComplaint = async (req, res) => {
           urgency:    'Low',
           department: 'Other',
           reason:     'AI unavailable. Please select department manually.',
-        },
+        }
       });
     }
   }
