@@ -343,8 +343,11 @@ async function startWhatsAppBot() {
 
   sock.ev.on('creds.update', saveCreds);
 
+  let qrPrinted = false; // ← Prevent QR spam
+
   sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
-    if (qr) {
+    if (qr && !qrPrinted) {
+      qrPrinted = true;
       console.log('\n[WhatsApp Bot] 📱 Scan this QR code with your WhatsApp:\n');
       qrcode.generate(qr, { small: true });
       console.log('\n[WhatsApp Bot] Open WhatsApp → Linked Devices → Link a Device → Scan above QR\n');
@@ -369,6 +372,7 @@ async function startWhatsAppBot() {
 
       if (!isReconnecting) {
         isReconnecting = true;
+        qrPrinted = false; // ← Reset QR flag on reconnection
         console.log(`[WhatsApp Bot] Connection closed (code: ${code}). Reconnecting in 5s...`);
         setTimeout(async () => {
           isReconnecting = false;
