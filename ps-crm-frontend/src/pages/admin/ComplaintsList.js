@@ -70,6 +70,11 @@ export default function ComplaintsList() {
   const [trackData, setTrackData]   = useState(null);
   const [trackLoading, setTrackLoading] = useState(false);
   const [lightbox, setLightbox] = useState(null);
+  const [expandedCitizenRows, setExpandedCitizenRows] = useState({});
+
+  const toggleCitizenList = (id) => {
+    setExpandedCitizenRows(prev => ({ ...prev, [id]: !prev[id] }));
+  };
 
   useEffect(() => { fetchComplaints(); fetchOfficers(); }, []);
 
@@ -261,11 +266,50 @@ export default function ComplaintsList() {
                     </td>
 
                     <td style={styles.td}>
-                      <div style={{ fontWeight: 600, fontSize: 13 }}>
+                      <div style={{ fontWeight: 600, fontSize: 13, color: '#0F2557' }}>
                         {c.citizen?.name}
-                        {c.isDuplicate && <span style={{ fontSize: 10, color: '#6B7FA3', marginLeft: 6 }}>+{c.allCitizens?.length - 1} more</span>}
                       </div>
-                      <div style={{ fontSize: 11, color: '#6B7FA3' }}>{c.citizen?.email}</div>
+                      <div style={{ fontSize: 11, color: '#6B7FA3', marginBottom: 6 }}>{c.citizen?.email}</div>
+                      {c.isDuplicate && c.allCitizens?.length > 1 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <button
+                            onClick={() => toggleCitizenList(c._id)}
+                            style={{
+                              fontSize: 11,
+                              padding: '4px 10px',
+                              borderRadius: 4,
+                              background: '#DBEAFE',
+                              border: '1px solid #0284C7',
+                              color: '#0369A1',
+                              cursor: 'pointer',
+                              fontWeight: 600,
+                              textAlign: 'left',
+                            }}
+                          >
+                            👥 +{c.allCitizens.length - 1} more
+                            {expandedCitizenRows[c._id] ? ' ▲' : ' ▼'}
+                          </button>
+                          {expandedCitizenRows[c._id] && (
+                            <div style={{
+                              maxHeight: 140,
+                              overflowY: 'auto',
+                              padding: '8px',
+                              border: '1px solid #DBEAFE',
+                              borderRadius: 6,
+                              background: '#F8FAFF',
+                              fontSize: 11,
+                            }}>
+                              {c.allCitizens.map((citizen, idx) => (
+                                <div key={idx} style={{ marginBottom: idx < c.allCitizens.length - 1 ? 6 : 0 }}>
+                                  <div style={{ fontWeight: 600, color: '#0F2557' }}>{citizen.name}</div>
+                                  <div style={{ color: '#6B7FA3' }}>{citizen.email}</div>
+                                  {citizen.phone && <div style={{ color: '#6B7FA3' }}>{citizen.phone}</div>}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </td>
 
                     <td style={styles.td}><span style={styles.catBadge}>{c.category}</span></td>

@@ -167,7 +167,13 @@ const submitComplaint = async (req, res) => {
       ...rest
     } = req.body;
 
-    const { ward = '', locality = '', address = '' } = location;
+    const { line1 = '', line2 = '', ward = '', locality = '', zone = '' } = location;
+    if (!line1.trim()) {
+      return res.status(400).json({ success: false, message: 'Location line1 is required' });
+    }
+    if (!ward.trim()) {
+      return res.status(400).json({ success: false, message: 'Ward is required' });
+    }
     const deadline = setSLADeadline(urgency);
 
     // ── 1. Build dedup fingerprint ──────────────────────────────────────────
@@ -243,7 +249,7 @@ const submitComplaint = async (req, res) => {
       urgency,
       duplicateKey,
       descriptionEmbedding: incomingEmbedding ?? undefined,
-      location: { address, ward, locality },
+      location: { line1, line2, ward, locality, zone },
       filers: [{
         citizen: {
           name:  citizen.name  || '',
