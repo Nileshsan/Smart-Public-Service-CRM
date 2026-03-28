@@ -26,12 +26,14 @@ const complaintRoutes  = require('./src/routes/complaintRoutes');
 const dashboardRoutes  = require('./src/routes/dashboardRoutes');
 const feedbackRoutes   = require('./src/routes/feedbackRoutes');
 const chatbotRoutes    = require('./src/routes/chatbotRoutes');
+const internalRoutes   = require('./src/routes/internal');
 
 app.use('/api/auth',       authRoutes);
 app.use('/api/complaints', complaintRoutes);
 app.use('/api/dashboard',  dashboardRoutes);
 app.use('/api/feedback',   feedbackRoutes);
 app.use('/api/chatbot',    chatbotRoutes);
+app.use('/api/internal',   internalRoutes);
 
 // ─── Start server ─────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
