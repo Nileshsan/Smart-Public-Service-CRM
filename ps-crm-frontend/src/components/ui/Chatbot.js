@@ -763,7 +763,7 @@ export default function Chatbot() {
 
       case 'stats':
         return (
-          <BotBubble key={msg.id} text={l==='hi'?'📊 PS-CRM लाइव आंकड़े:':'📊 PS-CRM Live Statistics:'} time={time}>
+          <BotBubble key={msg.id} text={l==='hi'?'📊 JanMitra AI लाइव आंकड़े:':'📊 JanMitra AI Live Statistics:'} time={time}>
             <StatsCard data={content.data} lang={l} />
           </BotBubble>
         );
@@ -890,15 +890,12 @@ export default function Chatbot() {
         className="chatbot-launcher"
         style={styles.launcher}
         onClick={() => setOpen(o => !o)}
-        title={hi ? 'चैटबॉट खोलें' : 'Open chatbot'}
+        title={hi ? 'चैटबॉट खोलें' : 'Open JanMitra AI'}
       >
         {open
           ? <svg width="22" height="22" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="4" x2="4" y2="18"/><line x1="4" y1="4" x2="18" y2="18"/></svg>
-          : <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-            </svg>
+          : <span style={{ fontSize: '20px', lineHeight: 1 }}>{'🤖'}</span>
         }
-        {!open && unread > 0 && <div style={styles.launcherBadge}>{unread}</div>}
       </button>
 
       {/* ── Chat Window ── */}
@@ -906,17 +903,22 @@ export default function Chatbot() {
         <div style={styles.widget}>
           {/* Header */}
           <div style={styles.header}>
-            <div style={styles.avatar}>🏛️</div>
+            <div style={styles.avatar}>🤖</div>
             <div style={styles.headerInfo}>
-              <p style={styles.headerName}>PS-CRM Assistant</p>
+              <p style={styles.headerName}>JanMitra AI</p>
               <p style={styles.headerSub}>
                 <span style={{ width:'7px', height:'7px', borderRadius:'50%', background:'#4ade80', display:'inline-block', marginRight:'5px', verticalAlign:'middle' }} />
                 {hi ? 'ऑनलाइन' : 'Online'}
               </p>
             </div>
             <div style={styles.headerBtns}>
+              <button style={styles.headerBtn} title={hi ? 'Reset chat' : 'Reset chat'}
+                onClick={() => { handleUserSend('', { action:'reset', _display:'' }); }}
+              >
+                🔄
+              </button>
               {lang && (
-                <button style={styles.headerBtn} title={hi?'Reset / Back':'रीसेट'}
+                <button style={styles.headerBtn} title={hi?'Home / Menu':'Home / Menu'}
                   onClick={() => { handleUserSend('', { action:'menu', _display:'' }); }}
                 >
                   🏠
